@@ -4,12 +4,15 @@ import Keys._
 import com.typesafe.sbtscalariform.ScalariformPlugin
 import ScalariformPlugin.{ format, formatPreferences }
 
+import com.typesafe.startscript.StartScriptPlugin
+
+
 object AkkaHttpBuild extends Build {
   lazy val core = Project("akka-http",
                           file("."),
                           settings = coreSettings)
 
-  val coreSettings = Defaults.defaultSettings ++ ScalariformPlugin.settings ++ Seq(
+  val coreSettings = Defaults.defaultSettings ++ ScalariformPlugin.settings ++ StartScriptPlugin.startScriptForClassesSettings ++ Seq(
     scalaVersion := "2.9.1",
     crossScalaVersions := Seq("2.9.0-1", "2.9.1"),
     name := "akka-http",
