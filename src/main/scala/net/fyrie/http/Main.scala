@@ -28,7 +28,7 @@ class HttpServer(port: Int) extends Actor {
               ByteString("Date: " + (new java.util.Date().toString)) ++ CRLF ++
               ByteString("Server: Fyrie") ++ CRLF ++
               ByteString("Content-Length: " + msg.length) ++ CRLF ++
-              (if (keepAlive) (ByteString("Connection: Keep-Alive") ++ CRLF ++ CRLF) else CRLF) ++ msg)
+              ByteString("Connection: " + (if (keepAlive) "Keep-Alive" else "Close")) ++ CRLF ++ CRLF ++ msg)
             if (!keepAlive) socket.close()
           }
         }
