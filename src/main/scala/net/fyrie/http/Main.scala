@@ -21,8 +21,7 @@ class HttpServer(port: Int) extends Actor {
             request ← readRequest
           } yield {
             val keepAlive = request.headers.exists { case Header(n, v) ⇒ n.toLowerCase == "connection" && v.toLowerCase == "keep-alive" }
-            val runtime = Runtime.getRuntime
-            val msg = ByteString("<p>Hello World!</p><p>Current connections: %4d<br>Processors: %2d<br>Memory Used: %4d / %4d MB</p>" format (state.size, runtime.availableProcessors, (runtime.totalMemory - runtime.freeMemory) / 1000000, runtime.totalMemory / 1000000))
+            val msg = ByteString("<p>Hello World!</p><p>Current connections: %4d</p>" format state.size)
             socket write (ByteString("HTTP/1.1 200 OK") ++ CRLF ++
               ByteString("Content-Type: text/html; charset=utf-8") ++ CRLF ++
               ByteString("Cache-Control: no-cache") ++ CRLF ++
