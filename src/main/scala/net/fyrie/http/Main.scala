@@ -6,7 +6,7 @@ import akka.util.ByteString
 class HttpServer(port: Int) extends Actor {
   import HttpIteratees._
 
-  val state = IO.IterateeRef.Map[IO.Handle]()
+  val state = IO.IterateeRef.Map.async[IO.Handle]()
 
   override def preStart {
     IO listen (IOManager.global, port)
@@ -21,7 +21,7 @@ class HttpServer(port: Int) extends Actor {
           for {
             request ← readRequest
           } yield {
-            val rsp = OKResponse(ByteString("<p>Hello World!</p><p>Current connections: %4d</p>" format state.size),
+            val rsp = OKResponse(ByteString("<p>Hello World!</p>") /* <p>Current connections: %4d</p>" format state.size) */ ,
               request.headers.exists { case Header(n, v) ⇒ n.toLowerCase == "connection" && v.toLowerCase == "keep-alive" })
             socket write OKResponse.bytes(rsp)
             if (!rsp.keepAlive) socket.close()

@@ -210,8 +210,11 @@ object IO {
   final case class Failure(exception: Throwable) extends Iteratee[Nothing]
 
   object IterateeRef {
-    def apply[A](initial: Iteratee[A]): IterateeRef[A] = new IterateeRef(initial)
-    def apply(): IterateeRef[Unit] = new IterateeRef(Iteratee.unit)
+    def sync[A](initial: Iteratee[A]): IterateeRefSync[A] = new IterateeRefSync(initial)
+    def sync(): IterateeRefSync[Unit] = new IterateeRefSync(Iteratee.unit)
+
+    def async[A](initial: Iteratee[A]): IterateeRefAsync[A] = new IterateeRefAsync(initial)
+    def async(): IterateeRefAsync[Unit] = new IterateeRefAsync(Iteratee.unit)
 
     class Map[K, V] private (refFactory: ⇒ IterateeRef[V], underlying: mutable.Map[K, IterateeRef[V]] = mutable.Map.empty[K, IterateeRef[V]]) extends mutable.Map[K, IterateeRef[V]] {
       def get(key: K) = Some(underlying.getOrElseUpdate(key, refFactory))
@@ -222,7 +225,8 @@ object IO {
     }
     object Map {
       def apply[K, V](refFactory: ⇒ IterateeRef[V]): IterateeRef.Map[K, V] = new Map(refFactory)
-      def apply[K](): IterateeRef.Map[K, Unit] = new Map(IterateeRef())
+      def sync[K](): IterateeRef.Map[K, Unit] = new Map(IterateeRef.sync())
+      def async[K](): IterateeRef.Map[K, Unit] = new Map(IterateeRef.async())
     }
   }
 
@@ -234,7 +238,21 @@ object IO {
    * Includes mutable implementations of flatMap, map, and apply which
    * update the internal reference and return Unit.
    */
-  final class IterateeRef[A](initial: Iteratee[A]) {
+  trait IterateeRef[A] {
+    def flatMap(f: A ⇒ Iteratee[A]): Unit
+    def map(f: A ⇒ A): Unit
+    def apply(input: Input): Unit
+  }
+
+  final class IterateeRefSync[A](initial: Iteratee[A]) extends IterateeRef[A] {
+    private var _value = initial
+    def flatMap(f: A ⇒ Iteratee[A]): Unit = _value = _value flatMap f
+    def map(f: A ⇒ A): Unit = _value = _value map f
+    def apply(input: Input): Unit = _value = _value(input)
+    def value: Iteratee[A] = _value
+  }
+
+  final class IterateeRefAsync[A](initial: Iteratee[A]) extends IterateeRef[A] {
     import akka.dispatch.Future
     private var _value = Future(initial)
     def flatMap(f: A ⇒ Iteratee[A]): Unit = _value = _value map (_ flatMap f)
@@ -456,7 +474,9 @@ private[akka] final class IOWorker(ioManager: ActorRef, val bufferSize: Int, dis
 
   val select = { () ⇒
     if (selector.isOpen) {
-      selector selectNow ()
+      // TODO: Make select behaviour configurable. Blocking 1ms reduces allocations during idle times
+      //selector selectNow ()
+      selector select 1
       val keys = selector.selectedKeys.iterator
       while (keys.hasNext) {
         val key = keys next ()
