@@ -235,11 +235,12 @@ object IO {
    * update the internal reference and return Unit.
    */
   final class IterateeRef[A](initial: Iteratee[A]) {
-    private var _value = initial
-    def flatMap(f: A ⇒ Iteratee[A]): Unit = _value = _value flatMap f
-    def map(f: A ⇒ A): Unit = _value = _value map f
-    def apply(input: Input): Unit = _value = _value(input)
-    def value: Iteratee[A] = _value
+    import akka.dispatch.Future
+    private var _value = Future(initial)
+    def flatMap(f: A ⇒ Iteratee[A]): Unit = _value = _value map (_ flatMap f)
+    def map(f: A ⇒ A): Unit = _value = _value map (_ map f)
+    def apply(input: Input): Unit = _value = _value map (_(input))
+    def future: Future[Iteratee[A]] = _value
   }
 
   /**
