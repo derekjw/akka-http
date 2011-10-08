@@ -4,6 +4,7 @@ import akka.actor._
 import akka.util.ByteString
 
 class HttpServer(port: Int) extends Actor {
+  import HttpIteratees._
 
   val state = IO.IterateeRef.Map[IO.Handle]()
 
@@ -20,16 +21,10 @@ class HttpServer(port: Int) extends Actor {
           for {
             request ← readRequest
           } yield {
-            val keepAlive = request.headers.exists { case Header(n, v) ⇒ n.toLowerCase == "connection" && v.toLowerCase == "keep-alive" }
-            val msg = ByteString("<p>Hello World!</p><p>Current connections: %4d</p>" format state.size)
-            socket write (ByteString("HTTP/1.1 200 OK") ++ CRLF ++
-              ByteString("Content-Type: text/html; charset=utf-8") ++ CRLF ++
-              ByteString("Cache-Control: no-cache") ++ CRLF ++
-              ByteString("Date: " + (new java.util.Date().toString)) ++ CRLF ++
-              ByteString("Server: Fyrie") ++ CRLF ++
-              ByteString("Content-Length: " + msg.length) ++ CRLF ++
-              ByteString("Connection: " + (if (keepAlive) "Keep-Alive" else "Close")) ++ CRLF ++ CRLF ++ msg)
-            if (!keepAlive) socket.close()
+            val rsp = OKResponse(ByteString("<p>Hello World!</p><p>Current connections: %4d</p>" format state.size),
+              request.headers.exists { case Header(n, v) ⇒ n.toLowerCase == "connection" && v.toLowerCase == "keep-alive" })
+            socket write OKResponse.bytes(rsp)
+            if (!rsp.keepAlive) socket.close()
           }
         }
       }
@@ -43,9 +38,11 @@ class HttpServer(port: Int) extends Actor {
 
   }
 
+}
+
+object HttpIteratees {
+
   val SP = ByteString(" ")
-  val CR = ByteString("\r")
-  val LF = ByteString("\n")
   val CRLF = ByteString("\r\n")
   val COLON = ByteString(":")
 
@@ -73,13 +70,13 @@ class HttpServer(port: Int) extends Actor {
     step(Nil)
   }
 
-  def readHeader =
+  val readHeader =
     for {
       name ← IO takeUntil COLON
       value ← IO takeUntil CRLF
     } yield Header(name.utf8String.trim, value.utf8String.trim)
 
-  def readRequestLine =
+  val readRequestLine =
     for {
       meth ← IO takeUntil SP
       uri ← IO takeUntil SP
@@ -87,7 +84,31 @@ class HttpServer(port: Int) extends Actor {
     } yield (meth.utf8String, uri.utf8String, httpver.utf8String)
 
 }
+object OKResponse {
+  import HttpIteratees.CRLF
 
+  def bytes(rsp: OKResponse) = {
+    okStatus ++ CRLF ++
+      contentType ++ CRLF ++
+      cacheControl ++ CRLF ++
+      date ++ ByteString(new java.util.Date().toString) ++ CRLF ++
+      server ++ CRLF ++
+      contentLength ++ ByteString(rsp.body.length.toString) ++ CRLF ++
+      connection ++ (if (rsp.keepAlive) keepAlive else close) ++ CRLF ++ CRLF ++ rsp.body
+  }
+
+  val okStatus = ByteString("HTTP/1.1 200 OK")
+  val contentType = ByteString("Content-Type: text/html; charset=utf-8")
+  val cacheControl = ByteString("Cache-Control: no-cache")
+  val date = ByteString("Date: ")
+  val server = ByteString("Server: Fyrie")
+  val contentLength = ByteString("Content-Length: ")
+  val connection = ByteString("Connection: ")
+  val keepAlive = ByteString("Keep-Alive")
+  val close = ByteString("Close")
+
+}
+case class OKResponse(body: ByteString, keepAlive: Boolean)
 case class Request(meth: String, uri: String, httpver: String, headers: List[Header], body: Option[ByteString])
 case class Header(name: String, value: String)
 
