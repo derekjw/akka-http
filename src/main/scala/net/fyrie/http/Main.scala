@@ -23,7 +23,7 @@ class HttpServer(port: Int) extends Actor {
           } yield {
             val rsp = OKResponse(ByteString("<p>Hello World!</p>") /* <p>Current connections: %4d</p>" format state.size) */ ,
               request.headers.exists { case Header(n, v) ⇒ n.toLowerCase == "connection" && v.toLowerCase == "keep-alive" })
-            socket write OKResponse.bytes(rsp)
+            socket write OKResponse.bytes(rsp).compact
             if (!rsp.keepAlive) socket.close()
           }
         }
@@ -43,6 +43,7 @@ class HttpServer(port: Int) extends Actor {
 object HttpIteratees {
 
   val SP = ByteString(" ")
+  val HT = ByteString("\t")
   val CRLF = ByteString("\r\n")
   val COLON = ByteString(":")
 
@@ -60,6 +61,8 @@ object HttpIteratees {
     else
       IO Done None
 
+  def decodeHeader(bytes: ByteString): String = bytes.decodeString("US-ASCII").trim
+
   def readHeaders = {
     def step(found: List[Header]): IO.Iteratee[List[Header]] = {
       IO peek 2 flatMap {
@@ -73,15 +76,20 @@ object HttpIteratees {
   val readHeader =
     for {
       name ← IO takeUntil COLON
-      value ← IO takeUntil CRLF
-    } yield Header(name.utf8String.trim, value.utf8String.trim)
+      value ← IO takeUntil CRLF flatMap readMultiLineValue
+    } yield Header(decodeHeader(name), decodeHeader(value))
+
+  def readMultiLineValue(initial: ByteString): IO.Iteratee[ByteString] = IO peek 1 flatMap {
+    case SP ⇒ IO takeUntil CRLF flatMap (bytes ⇒ readMultiLineValue(initial ++ bytes))
+    case _  ⇒ IO Done initial
+  }
 
   val readRequestLine =
     for {
       meth ← IO takeUntil SP
       uri ← IO takeUntil SP
       httpver ← IO takeUntil CRLF
-    } yield (meth.utf8String, uri.utf8String, httpver.utf8String)
+    } yield (decodeHeader(meth), decodeHeader(uri), decodeHeader(httpver))
 
 }
 object OKResponse {
