@@ -21,8 +21,14 @@ class HttpServer(port: Int) extends Actor {
           for {
             request ← readRequest
           } yield {
-            val rsp = OKResponse(ByteString("<p>Hello World!</p>") /* <p>Current connections: %4d</p>" format state.size) */ ,
-              request.headers.exists { case Header(n, v) ⇒ n.toLowerCase == "connection" && v.toLowerCase == "keep-alive" })
+            val rsp = request match {
+              case Request("GET", "ping" :: Nil, _, headers, _) ⇒
+                OKResponse(ByteString("<p>pong</p>"),
+                  request.headers.exists { case Header(n, v) ⇒ n.toLowerCase == "connection" && v.toLowerCase == "keep-alive" })
+              case req ⇒
+                OKResponse(ByteString("<p>" + req.toString + "</p>"),
+                  request.headers.exists { case Header(n, v) ⇒ n.toLowerCase == "connection" && v.toLowerCase == "keep-alive" })
+            }
             socket write OKResponse.bytes(rsp).compact
             if (!rsp.keepAlive) socket.close()
           }
@@ -46,6 +52,9 @@ object HttpIteratees {
   val HT = ByteString("\t")
   val CRLF = ByteString("\r\n")
   val COLON = ByteString(":")
+  val PERCENT = ByteString("%")
+  val PATH = ByteString("/")
+  val QUERY = ByteString("?")
 
   def readRequest =
     for {
@@ -87,9 +96,43 @@ object HttpIteratees {
   val readRequestLine =
     for {
       meth ← IO takeUntil SP
-      uri ← IO takeUntil SP
+      uri ← readRequestURI
       httpver ← IO takeUntil CRLF
-    } yield (decodeHeader(meth), decodeHeader(uri), decodeHeader(httpver))
+    } yield (decodeHeader(meth), uri, decodeHeader(httpver))
+
+  val readRequestURI = IO peek 1 flatMap {
+    case PATH ⇒ readPath
+    case _    ⇒ sys.error("Not Implemented")
+  }
+
+  // TODO: Optimize path reading
+  def readPath = {
+    def step(segments: List[String]): IO.Iteratee[List[String]] = IO peek 1 flatMap {
+      case PATH ⇒ IO take 1 flatMap (_ ⇒ readPathSegment flatMap (segment ⇒ step(segment :: segments)))
+      case _ ⇒ segments match {
+        case "" :: rest ⇒ IO Done rest.reverse
+        case _          ⇒ IO Done segments.reverse
+      }
+    }
+    step(Nil)
+  }
+
+  val alpha = Set.empty ++ ('a' to 'z') ++ ('A' to 'Z') map (_.toByte)
+  val digit = Set.empty ++ ('0' to '9') map (_.toByte)
+  val hexdigit = digit ++ (Set.empty ++ ('a' to 'f') ++ ('A' to 'F') map (_.toByte))
+  val subdelim = Set('!', '$', '&', '\'', '(', ')', '*', '+', ',', ';', '=') map (_.toByte)
+  val pathchar = alpha ++ digit ++ subdelim ++ (Set(':', '@') map (_.toByte))
+
+  def readPathSegment: IO.Iteratee[String] = for {
+    str ← IO takeWhile pathchar map (_.utf8String)
+    pchar ← IO peek 1 map (_ == PERCENT)
+    segment ← if (pchar) readPChar flatMap (ch ⇒ readPathSegment map (str + ch + _)) else IO Done str
+  } yield segment
+
+  def readPChar = IO take 3 map {
+    case Seq('%', rest @ _*) if rest forall hexdigit ⇒
+      java.lang.Integer.parseInt(rest map (_.toChar) mkString, 16).toChar
+  }
 
 }
 object OKResponse {
@@ -117,7 +160,7 @@ object OKResponse {
 
 }
 case class OKResponse(body: ByteString, keepAlive: Boolean)
-case class Request(meth: String, uri: String, httpver: String, headers: List[Header], body: Option[ByteString])
+case class Request(meth: String, uri: List[String], httpver: String, headers: List[Header], body: Option[ByteString])
 case class Header(name: String, value: String)
 
 object Main extends App {

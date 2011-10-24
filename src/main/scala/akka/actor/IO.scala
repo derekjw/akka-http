@@ -283,6 +283,20 @@ object IO {
     Cont(step(ByteString.empty))
   }
 
+  def takeWhile(p: (Byte) ⇒ Boolean): Iteratee[ByteString] = {
+    def step(taken: ByteString)(input: Input): (Iteratee[ByteString], Input) = input match {
+      case Chunk(more) ⇒
+        val (found, rest) = more span p
+        if (rest.isEmpty)
+          (Cont(step(taken ++ found)), Chunk.empty)
+        else
+          (Done(taken ++ found), Chunk(rest))
+      case eof ⇒ (Done(taken), eof)
+    }
+
+    Cont(step(ByteString.empty))
+  }
+
   /**
    * An Iteratee that returns a ByteString of the requested length.
    */
