@@ -400,13 +400,9 @@ object IO {
         else result match {
           case (Done(value), rest) ⇒
             val (head, tail) = queue.dequeue
-            head(value) match {
-              //case Cont(Chain(f, q)) ⇒ run(f(rest), q ++ tail) <- can cause big slowdown, need to test if needed
-              case Cont(f) ⇒ run(f(rest), tail)
-              case iter    ⇒ run((iter, rest), tail)
-            }
+            run(head(value)(rest), tail)
           case (Cont(f), rest) ⇒
-            (Cont(new Chain(f, queue)), rest)
+            (Cont(Chain(f, queue)), rest)
           case _ ⇒ result
         }
       }
