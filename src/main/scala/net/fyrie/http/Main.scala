@@ -2,6 +2,7 @@ package net.fyrie.http
 
 import akka.actor._
 import akka.util.ByteString
+import java.net.InetSocketAddress
 
 class HttpServer(port: Int) extends Actor {
   import HttpIteratees._
@@ -9,7 +10,7 @@ class HttpServer(port: Int) extends Actor {
   val state = IO.IterateeRef.Map.async[IO.Handle]()
 
   override def preStart {
-    IO listen (IOManager.global, port)
+    IO listen new InetSocketAddress(port)
   }
 
   def receive = {
@@ -165,5 +166,19 @@ case class Header(name: String, value: String)
 
 object Main extends App {
   val port = Option(System.getenv("PORT")) map (_.toInt) getOrElse 8080
-  val server = Actor.actorOf(new HttpServer(port)).start
+  val config = ActorSystem.DefaultConfigurationLoader.defaultConfig.withFallback(
+    com.typesafe.config.ConfigFactory.parseString("""
+      akka {
+        actor {
+          default-dispatcher {
+            core-pool-size-factor = 0.7
+            max-pool-size-factor  = 0.7
+            throughput = 100
+          }
+        }
+      }
+      """, com.typesafe.config.ConfigParseOptions.defaults))
+
+  val system = ActorSystem("test system", config)
+  val server = system.actorOf(new HttpServer(port))
 }
