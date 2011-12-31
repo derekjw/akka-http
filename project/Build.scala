@@ -1,10 +1,10 @@
 import sbt._
 import Keys._
 
-import com.typesafe.sbtscalariform.ScalariformPlugin
-import ScalariformPlugin.{ format, formatPreferences }
+//import com.typesafe.sbtscalariform.ScalariformPlugin
+//import ScalariformPlugin.{ format, formatPreferences }
 
-import com.typesafe.startscript.StartScriptPlugin
+//import com.typesafe.startscript.StartScriptPlugin
 
 object AkkaHttpBuild extends Build {
   lazy val core = Project("akka-http",
@@ -12,11 +12,15 @@ object AkkaHttpBuild extends Build {
                           dependencies = Seq(akkaActor, akkaTestKit % "test"),
                           settings = coreSettings)
 
-  lazy val akkaActor = ProjectRef(uri("git://github.com/jboner/akka.git#wip-923-derekjw"), "akka-actor")
+  lazy val akkaActor = ProjectRef(uri("git://github.com/derekjw/akka.git#wip-923-derekjw"), "akka-actor")
 
-  lazy val akkaTestKit = ProjectRef(uri("git://github.com/jboner/akka.git#wip-923-derekjw"), "akka-testkit")
+  lazy val akkaTestKit = ProjectRef(uri("git://github.com/derekjw/akka.git#wip-923-derekjw"), "akka-testkit")
 
-  val coreSettings = Defaults.defaultSettings ++ /* ScalariformPlugin.settings ++ */ StartScriptPlugin.startScriptForClassesSettings ++ Seq(
+  //lazy val akkaActor = ProjectRef(uri("git://github.com/jboner/akka.git#wip-923-derekjw"), "akka-actor")
+
+  //lazy val akkaTestKit = ProjectRef(uri("git://github.com/jboner/akka.git#wip-923-derekjw"), "akka-testkit")
+
+  val coreSettings = Defaults.defaultSettings ++ /* ScalariformPlugin.settings ++ */ /* StartScriptPlugin.startScriptForClassesSettings ++ */ Seq(
     scalaVersion := "2.9.1",
     name := "akka-http",
     organization := "net.fyrie",
@@ -33,13 +37,13 @@ object AkkaHttpBuild extends Build {
       Some(if (version.trim.endsWith("SNAPSHOT")) repo("snapshots") else repo("releases"))
     })
 
-  val formattingPreferences = {
+/*  val formattingPreferences = {
     import scalariform.formatter.preferences._
     FormattingPreferences()
     .setPreference(RewriteArrowSymbols, true)
     .setPreference(AlignParameters, true)
     .setPreference(AlignSingleLineCaseStatements, true)
-  }
+  }*/
 
 }
 

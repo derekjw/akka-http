@@ -1,13 +1,13 @@
 package net.fyrie.http
 
 import akka.actor._
-import akka.util.ByteString
+import akka.util.{ ByteString, ByteStringBuilder }
 import java.net.InetSocketAddress
 
 class HttpServer(port: Int) extends Actor {
   import HttpIteratees._
 
-  val state = IO.IterateeRef.Map.async[IO.Handle]()
+  val state = IO.IterateeRef.Map.async[IO.Handle]()(context.system)
 
   override def preStart {
     IO listen new InetSocketAddress(port)
@@ -140,13 +140,14 @@ object OKResponse {
   import HttpIteratees.CRLF
 
   def bytes(rsp: OKResponse) = {
-    okStatus ++ CRLF ++
-      contentType ++ CRLF ++
-      cacheControl ++ CRLF ++
-      date ++ ByteString(new java.util.Date().toString) ++ CRLF ++
-      server ++ CRLF ++
-      contentLength ++ ByteString(rsp.body.length.toString) ++ CRLF ++
-      connection ++ (if (rsp.keepAlive) keepAlive else close) ++ CRLF ++ CRLF ++ rsp.body
+    new ByteStringBuilder ++=
+      okStatus ++= CRLF ++=
+      contentType ++= CRLF ++=
+      cacheControl ++= CRLF ++=
+      date ++= ByteString(new java.util.Date().toString) ++= CRLF ++=
+      server ++= CRLF ++=
+      contentLength ++= ByteString(rsp.body.length.toString) ++= CRLF ++=
+      connection ++= (if (rsp.keepAlive) keepAlive else close) ++= CRLF ++= CRLF ++= rsp.body result
   }
 
   val okStatus = ByteString("HTTP/1.1 200 OK")
@@ -166,19 +167,18 @@ case class Header(name: String, value: String)
 
 object Main extends App {
   val port = Option(System.getenv("PORT")) map (_.toInt) getOrElse 8080
-  val config = ActorSystem.DefaultConfigurationLoader.defaultConfig.withFallback(
-    com.typesafe.config.ConfigFactory.parseString("""
+  val config = com.typesafe.config.ConfigFactory.parseString("""
       akka {
         actor {
           default-dispatcher {
-            core-pool-size-factor = 0.7
-            max-pool-size-factor  = 0.7
-            throughput = 100
+            core-pool-size-min = 4
+            core-pool-size-factor = 0.5
+            throughput = 2147483647
           }
         }
       }
-      """, com.typesafe.config.ConfigParseOptions.defaults))
+      """)
 
-  val system = ActorSystem("test system", config)
-  val server = system.actorOf(new HttpServer(port))
+  val system = ActorSystem("TestSystem", config)
+  val server = system.actorOf(Props(new HttpServer(port)))
 }
