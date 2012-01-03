@@ -12,13 +12,9 @@ object AkkaHttpBuild extends Build {
                           dependencies = Seq(akkaActor, akkaTestKit % "test"),
                           settings = coreSettings)
 
-  lazy val akkaActor = ProjectRef(uri("git://github.com/derekjw/akka.git#wip-923-derekjw"), "akka-actor")
+  lazy val akkaActor = ProjectRef(uri("git://github.com/jboner/akka.git#wip-1597-derekjw"), "akka-actor")
 
-  lazy val akkaTestKit = ProjectRef(uri("git://github.com/derekjw/akka.git#wip-923-derekjw"), "akka-testkit")
-
-  //lazy val akkaActor = ProjectRef(uri("git://github.com/jboner/akka.git#wip-923-derekjw"), "akka-actor")
-
-  //lazy val akkaTestKit = ProjectRef(uri("git://github.com/jboner/akka.git#wip-923-derekjw"), "akka-testkit")
+  lazy val akkaTestKit = ProjectRef(uri("git://github.com/jboner/akka.git#wip-1597-derekjw"), "akka-testkit")
 
   val coreSettings = Defaults.defaultSettings ++ /* ScalariformPlugin.settings ++ */ /* StartScriptPlugin.startScriptForClassesSettings ++ */ Seq(
     scalaVersion := "2.9.1",
